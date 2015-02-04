@@ -1,4 +1,4 @@
-function [Jf, Jg] = jac(obj, pb, part, ghost, varargin)
+function [Jf, Jg] = jacB(pb, part, varargin)
 %JAC  Calculates the analytical Jacobians of the index-2 Hessenberg DAE.
 %     [Jf, Jg] = jac(pb, part)
 %       forces a evaluation of the ghosts and of all particle neighbours.
@@ -6,19 +6,19 @@ function [Jf, Jg] = jac(obj, pb, part, ghost, varargin)
 %       uses the specified ghosts and assumes that the neighbours have been
 %       already set (and are available in the structure 'part')
 
-% %         if nargin == 2
-% %             % Set the ghost points.
-% %             ghost = set_ghosts(pb, part);
-% % 
-% %             % For each particle, find its neighbours (particles and ghosts)
-% %             for i = 1 : pb.N
-% %                 [nb_p, nb_g] = find_neighbours(part.r(:,i), pb, part, ghost);
-% %                 part.nb_p{i} = nb_p;
-% %                 part.nb_g{i} = nb_g;
-% %             end
-% %         else
-% %             ghost = varargin{1};
-% %         end
+if nargin == 2
+    % Set the ghost points.
+    ghost = set_ghosts(pb, part);
+    
+    % For each particle, find its neighbours (particles and ghosts)
+    for i = 1 : pb.N
+        [nb_p, nb_g] = find_neighbours(part.r(:,i), pb, part, ghost);
+        part.nb_p{i} = nb_p;
+        part.nb_g{i} = nb_g;
+    end
+else
+    ghost = varargin{1};
+end
 
 % Calculate the Jacobian of the RHS of the momentunm equations and the
 % Jacobian of the algebraic constraints (the divergence-free conditions).
@@ -26,12 +26,8 @@ numPos = 2 * pb.N;
 numVel = 2 * pb.N;
 numPres = pb.N;
 
-numGhost = ghost.num;
-numVelG = 2 * numGhost;
-numPresG = numGhost;
-
-Jf = zeros(numVel,  numPos + numVel + numPres + numVelG + numPresG);
-Jg = zeros(numPres, numPos + numVel + numPres + numVelG + numPresG);
+Jf = zeros(numVel,  numPos + numVel + numPres);
+Jg = zeros(numPres, numPos + numVel + numPres);
 
 for a = 1 : pb.N
     
@@ -44,9 +40,9 @@ for a = 1 : pb.N
     row_Jg = a;
 
     % Columns in Jacobians corresponding to states of particle 'a'.
-    col_ra = obj.Cols_r(a, pb.N);
-    col_va = obj.Cols_v(a, pb.N);
-    col_pa = obj.Cols_p(a, pb.N);
+    col_ra = cols_r(a, pb.N);
+    col_va = cols_v(a, pb.N);
+    col_pa = cols_p(a, pb.N);
     
     % Walk all particle neighbours.
     for ib = 1 : length(nb_p)
@@ -57,9 +53,9 @@ for a = 1 : pb.N
         hessW = kernel(r, pb.h, 2);
         
         % Columns in Jacobians corresponding to particle 'b'.
-        col_rb = obj.Cols_r(b, pb.N);
-        col_vb = obj.Cols_v(b, pb.N);
-        col_pb = obj.Cols_p(b, pb.N);
+        col_rb = cols_r(b, pb.N);
+        col_vb = cols_v(b, pb.N);
+        col_pb = cols_p(b, pb.N);
         
         % Temporary variables.
         p_bar = part.p(a)/pb.rho^2 + part.p(b)/pb.rho^2;
@@ -96,7 +92,7 @@ for a = 1 : pb.N
         Jg(row_Jg, col_va) = Jg(row_Jg, col_va) + Ca_va;
         Jg(row_Jg, col_vb) = Jg(row_Jg, col_vb) - Ca_va;
     end
-        
+    
     % Walk all ghost neighbours.
     for ib = 1 : length(nb_g)
         b = nb_g(ib);
@@ -105,19 +101,19 @@ for a = 1 : pb.N
         gradW = kernel(r, pb.h, 1);
         hessW = kernel(r, pb.h, 2);
         
-        % Columns in Jacobians corresponding to particle 'b'.
-        col_rb = obj.Cols_r(ghost.idx(b), pb.N);
-        col_vb = obj.Cols_v_ghost(b, pb.N, ghost.num);
-        col_pb = obj.Cols_p_ghost(b, pb.N, ghost.num);
+        % Columns in Jacobians corresponding to particle ghost.idx(b).
+        col_rb = cols_r(ghost.idx(b), pb.N);
+        col_vb = cols_v(ghost.idx(b), pb.N);
+        col_pb = cols_p(ghost.idx(b), pb.N);
         
         % Temporary variables.
         p_bar = part.p(a)/pb.rho^2 + ghost.p(b)/pb.rho^2;
         rho_bar = (pb.rho + pb.rho) / 2;
         mu_bar = pb.mu + pb.mu;
         rr_bar = r' * r + pb.eta2;
-       
+  
         % Get relationship ghost - associated particle
-        [Gr, Gv, Gp] = obj.ghost_influence(ghost.bc(:,b));
+        [Gr, Gv, Gp] = ghost_influence(ghost.bc(:,b));
         
         % Jacobian blocks corresponding to the term A.
         Aa_ra = pb.m * p_bar * hessW;
@@ -127,7 +123,7 @@ for a = 1 : pb.N
         Aa_pa = pb.m / pb.rho^2 * gradW';
         Aa_pb = pb.m / pb.rho^2 * gradW';
         Jf(row_Jf, col_pa) = Jf(row_Jf, col_pa) - Aa_pa;
-        Jf(row_Jf, col_pb) = Jf(row_Jf, col_pb) - Aa_pb;
+        Jf(row_Jf, col_pb) = Jf(row_Jf, col_pb) - Aa_pb * Gp;
         
         % Jacobian blocks corresponding to the term B.
         Ba_ra = pb.m * (mu_bar / rho_bar^2 / rr_bar) * ...
@@ -137,8 +133,8 @@ for a = 1 : pb.N
         
         Ba_va = pb.m * (mu_bar / rho_bar^2 / rr_bar) * (r' * gradW') * eye(2);
         Jf(row_Jf, col_va) = Jf(row_Jf, col_va) + Ba_va;
-        Jf(row_Jf, col_vb) = Jf(row_Jf, col_vb) - Ba_va;
-        
+        Jf(row_Jf, col_vb) = Jf(row_Jf, col_vb) - Ba_va * Gv;
+
         % Jacobian blocks corresponding to the term C.
         Ca_ra = pb.m / pb.rho * v' * hessW;
         Jg(row_Jg, col_ra) = Jg(row_Jg, col_ra) + Ca_ra;
@@ -146,35 +142,43 @@ for a = 1 : pb.N
         
         Ca_va = pb.m / pb.rho * gradW;
         Jg(row_Jg, col_va) = Jg(row_Jg, col_va) + Ca_va;
-        Jg(row_Jg, col_vb) = Jg(row_Jg, col_vb) - Ca_va;
+        Jg(row_Jg, col_vb) = Jg(row_Jg, col_vb) - Ca_va * Gv;
     end
+    
     
 end
 
 return
 
+% =========================================================================
 
-% 
-%                 
-%                 
-% 
-% % =========================================================================
-% 
-% 
-% % =========================================================================
-% 
-% function [Gr, Gv, Gp] = ghost_influence(bc)
-% % The 2 dimensional array 'bc' encodes the BC for some ghost point. We can
-% % have the following cases:
-% %   bc(1) = 0  or  1
-% %   bc(2) = 0  or  2
-% 
-% if bc(2) == 0
-%    Gr = [1 0; 0 1];
-%    Gv = [1 0; 0 1];
-% else
-%    Gr = [1 0; 0 -1]; 
-%    Gv = [-1 0; 0 -1];
-% end
-% 
-% Gp = 1;
+function c = cols_r(i, n)
+c = ((i-1)*2 + 1 : i*2);
+return
+
+function c = cols_v(i, n)
+numPos = 2 * n;
+c = (numPos + (i-1)*2 + 1 : numPos + i*2);
+return
+
+function c = cols_p(i, n)
+c = 2 * 2 * n + i;
+return
+
+% =========================================================================
+
+function [Gr, Gv, Gp] = ghost_influence(bc)
+% The 2 dimensional array 'bc' encodes the BC for some ghost point. We can
+% have the following cases:
+%   bc(1) = 0  or  1
+%   bc(2) = 0  or  2
+
+if bc(2) == 0
+   Gr = [1 0; 0 1];
+   Gv = [1 0; 0 1];
+else
+   Gr = [1 0; 0 -1]; 
+   Gv = [-1 0; 0 -1];
+end
+
+Gp = 1;

@@ -36,8 +36,8 @@ classdef Visualize < handle
             hold off
             %% Plot Pressure
             figure(obj.hf2);
-            x_lim = [0 pb.L];
-            y_lim = [-pb.b pb.b];
+            x_lim = [0 pb.Lx];
+            y_lim = [-(0.5*pb.Ly) (0.5*pb.Ly)];
 
             x_min = x_lim(1) - 2*pb.h;
             x_max = x_lim(2) + 2*pb.h;

@@ -1,4 +1,4 @@
-function [f, g] = rhs(pb, part, varargin)
+function [f, g] = rhs(pb, part, ghost, varargin)
 %RHS  Evaluate the right hand side terms in the index-2 Hessenberg DAE.
 %     [f, g] = rhs(pb, part)
 %        forces a evaluaion of the ghosts and of all particle neighbours.
@@ -6,19 +6,19 @@ function [f, g] = rhs(pb, part, varargin)
 %       uses the specified ghosts and assumes that the neighbours have been
 %       already set (and are available in the structure 'part').
 
-if nargin == 2
-    % Set the ghost points.
-    ghost = set_ghosts(pb, part);
-    
-    % For each particle, find its neighbours (particles and ghosts)
-    for i = 1 : pb.N
-        [nb_p, nb_g] = find_neighbours(part.r(:,i), pb, part, ghost);
-        part.nb_p{i} = nb_p;
-        part.nb_g{i} = nb_g;
-    end
-else
-    ghost = varargin{1};
-end
+    %     if nargin == 2
+    %         % Set the ghost points.
+    %         ghost = set_ghosts(pb, part);
+    % 
+    %         % For each particle, find its neighbours (particles and ghosts)
+    %         for i = 1 : pb.N
+    %             [nb_p, nb_g] = find_neighbours(part.r(:,i), pb, part, ghost);
+    %             part.nb_p{i} = nb_p;
+    %             part.nb_g{i} = nb_g;
+    %         end
+    %     else
+    %         ghost = varargin{1};
+    %     end
 
 % Evaluate the RHS of the momentum equations and the divergence-free
 % algebraic constraints.
