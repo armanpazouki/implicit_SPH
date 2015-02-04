@@ -4,7 +4,7 @@ function plot_neighbours(hf, loc, pb, part, ghost)
 figure(hf);
 
 % Find neighbour particles and ghosts for the specified location.
-[nb_p, nb_g] = find_neighbours(loc, pb, part.r, ghost.r);
+[nb_p, nb_g] = find_neighbours(loc, pb, part, ghost);
 
 radius = 2 * pb.h;
 

@@ -41,8 +41,8 @@ rho = calc_density(loc, pb, part, ghost);
 fprintf('  at [%f %f]  rho = %f\n', loc(1), loc(2), rho);
 
 %% Plot pressure
-x_lim = [0 pb.Lx];
-y_lim = [-(0.5*pb.Ly) (0.5*pb.Ly)];
+x_lim = [0 pb.L];
+y_lim = [-pb.b pb.b];
 
 x_min = x_lim(1) - 2*pb.h;
 x_max = x_lim(2) + 2*pb.h;

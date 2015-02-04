@@ -3,6 +3,7 @@ classdef Visualize < handle
         hf1;
         hf2;
         hf3;
+        hf4;
     end
     methods
         function Initialize(obj)
@@ -12,6 +13,11 @@ classdef Visualize < handle
             set(obj.hf2, 'position', [200, 80, 800, 600]);
             obj.hf3 = figure;            
             set(obj.hf3, 'position', [220, 100, 800, 600]);
+            obj.hf4 = figure;            
+            set(obj.hf4, 'position', [220, 100, 800, 600]);
+            xlabel('$y$ (m)','interpreter','latex','FontSize',18)
+            ylabel('$v$ (m/s)','interpreter','latex','FontSize',18)
+            set(gca,'fontsize',18);
         end
         function PlotVelocity(obj, SimulSys)
             pb = SimulSys.pb;
@@ -22,22 +28,22 @@ classdef Visualize < handle
             figure(obj.hf1);
             clf
             hold on
-            plot_particles(obj.hf1, SimulSys.partNew, SimulSys.edgeP, SimulSys.dummyP, SimulSys.pb);
+            plot_particles(obj.hf1, SimulSys.part, SimulSys.ghost, SimulSys.pb);
             %%
             pb = SimulSys.pb;
-            loc = [pb.del; pb.del*pb.ny];
-            plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.edgeP);
+            loc = [2*pb.h; -2.5*pb.h];
+            plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.ghost);
             plot(loc(1), loc(2), 'r*', 'markerfacecolor', 'r');
-%             ip = round(pb.nx/2);
-%             jp = pb.ny-1;
-%             loc = SimulSys.part.r(:,(ip-1)*pb.ny + jp);
-%             plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.edgeP);
-%             plot(loc(1), loc(2), 'r*', 'markerfacecolor', 'r');
+            ip = round(pb.nx/2);
+            jp = pb.ny-1;
+            loc = SimulSys.part.r(:,(ip-1)*pb.ny + jp);
+            plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.ghost);
+            plot(loc(1), loc(2), 'r*', 'markerfacecolor', 'r');
             hold off
             %% Plot Pressure
             figure(obj.hf2);
-            x_lim = [0 pb.Lx];
-            y_lim = [0 pb.Ly];
+            x_lim = [0 pb.L];
+            y_lim = [-pb.b pb.b];
 
             x_min = x_lim(1) - 2*pb.h;
             x_max = x_lim(2) + 2*pb.h;
@@ -60,9 +66,9 @@ classdef Visualize < handle
             colorbar
 
             subplot(3,1,2)
-            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.edgeP.p' ; nan*ones(pb.N,1)];
+            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.ghost.p' ; nan*ones(pb.N,1)];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d
@@ -75,9 +81,9 @@ classdef Visualize < handle
             colorbar
 
             subplot(3,1,3)
-            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.edgeP.p' ; SimulSys.part.p'];
+            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.ghost.p' ; SimulSys.part.p'];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d
@@ -91,9 +97,9 @@ classdef Visualize < handle
             %% Plot Velocity
             figure(obj.hf3);
             subplot(2,1,1)
-            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.edgeP.v(1,:)' ; SimulSys.part.v(1,:)'];
+            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.ghost.v(1,:)' ; SimulSys.part.v(1,:)'];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d
@@ -106,9 +112,9 @@ classdef Visualize < handle
             colorbar
 
             subplot(2,1,2)
-            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.edgeP.v(2,:)' ; SimulSys.part.v(2,:)'];
+            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.ghost.v(2,:)' ; SimulSys.part.v(2,:)'];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d
@@ -120,6 +126,19 @@ classdef Visualize < handle
             ylim([y_min y_max]);   
             colorbar
         end
+        %%
+        function CompareVel(obj, SimulSys, t)
+            figure(obj.hf4);
+            hold on
+            [vx, lat] = SimulSys.ParabolicV(10);
+            [vAnalytical, zAnalytical] = SimulSys.AnalyticalPoiseuille(100,t);
+            plot(zAnalytical, vAnalytical, '-k');
+            plot(lat, vx, '*k');
+            myLeg1 = legend('Analytical Solution', 'Implicit SPH');
+            set(myLeg1, 'interpreter', 'latex','FontSize',14);
+            hold off
+            print(obj.hf4,'-r300','-djpeg ','HangingBeamInViscoseFlow_xTip.jpg')  %'-dtiff ' for tiff
+        end          
     end % methods
 end % class
             
