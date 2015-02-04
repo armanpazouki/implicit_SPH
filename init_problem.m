@@ -1,81 +1,53 @@
-function pb = init_problem(dim)
+function pb = init_problem
 %INIT_PROBLEM  Specify the SPH problem
-%   pb = init_problem(dim) initializes a problem for the specified
-%   dimension D (1, 2, or 3).  The return value is a structure with the
-%   following fields:
-%      pb.dim     The problem dimension D
-%      pb.domain  The ...
-%      pb.n
-%      pb.BC
-%      ...
+%   pb = init_problem initializes the 2D problem.  
 
-% Set spatial scale.  This is used for setting initial particle locations
-% and setting the kernel's support radius.
-h = 1;%%2e-4;
 
-pb.dim = dim;
+% Water density and kinematic and dynamic viscosity
+% pb.rho = 1000;          % Kg/m^3
+% pb.mu = 1e-3;           % Kg/(m^2*s^2)
+% pb.nu = pb.mu / pb.rho; % m/s^2
+pb.rho = 1;          % Kg/m^3
+pb.mu = 1;           % Kg/(m^2*s^2)
+pb.nu = pb.mu / pb.rho; % m/s^2
 
-% density and pressure
-pb.rho = 1;%%1180;
-pb.pres = 1;%%1e8;
+% Pressure gradient and body force (in x direction)
+% pb.K = 2e-9
+pb.K = 0.5;%2e-9; % 2 * mu^2 * Re / (rho*b^3)
+pb.F = 0.0;
 
-% initial particle velocity
-% pb.v0 = zeros(pb.dim, 1);
-% pb.v0(1) = 1;
-pb.v0 = rand(pb.dim, 1);
-pb.v0 = pb.v0 / norm(pb.v0);
+% Suggested number of SPH markers.
+N = 200;
 
-% viscosity
-pb.mu = 0.05;
+% Channel half-width and length
+b = 1;
+L = 2*b;
 
-% kernel support radius = 2 * pb.h
-pb.h = 1.1 * h;
+% Estimate Reynolds number
+u_max = (pb.K + pb.rho * pb.F) * b^2 / (2 * pb.mu);
+Re = u_max * (2 * b) / pb.nu;
+fprintf('u_max = %g\n', u_max);
+fprintf('Re = %g\n', Re);
+
+
+% Calculate actual number of SPH markers and channel length.
+pb.ny = floor(sqrt(2*b*N/L));
+pb.del = 2*b/pb.ny;
+pb.nx = floor(N/pb.ny);
+pb.N = pb.nx * pb.ny;
+pb.b = b;
+pb.L = pb.del * pb.nx;
+
+% Calculate particle mass.
+pb.m = pb.rho * pb.del^2;
+
+% Set the kernel support radius (2*h) such that we average N_avg neighbors.
+N_avg = 30;
+pb.h = 0.5 * pb.del * sqrt(N_avg / pi);
+
 pb.eta2 = (0.1 * pb.h)^2;
 
-% body force
-pb.F = zeros(pb.dim, 1);
-pb.F(1) = 1;%%4;
+% Time stepsize
+% pb.dt = 10000;
+pb.dt = 0.01;%10000; .01 is for normalized system
 
-% time stepsize
-pb.dt = 0.001;
-
-% number of particles in each direction
-% nx = 10;
-% ny = 10;
-% nz = 10;
-nx = 5;
-ny = 5;
-nz = 5;
-
-% domain limits
-x_lim = [-3*h  3*h];
-y_lim = [-3*h  3*h];
-z_lim = [-3*h  3*h];
-
-% types of BC in each direction.
-% 1 - periodic
-% 2 - wall
-x_BC = 1;
-y_BC = 2;
-z_BC = 1;
-
-switch pb.dim
-    case 1
-        pb.domain = x_lim;
-        pb.BC = x_BC;
-        pb.n = nx;
-    case 2
-        pb.domain = [x_lim; y_lim];
-        pb.BC = [x_BC; y_BC];
-        pb.n = [nx; ny];
-        
-    case 3
-        pb.domain = [x_lim; y_lim; z_lim];
-        pb.BC = [x_BC; y_BC; z_BC];
-        pb.n = [nx; ny; nz];
-end
-
-
-% Particle mass
-vol = prod(pb.domain(:,2) - pb.domain(:,1));
-pb.m = pb.rho * vol / prod(pb.n);

@@ -4,58 +4,48 @@ function part = init_particles(pb)
 %    the problem specification 'pb'. The return value is a structure with
 %    the following fields:
 %       num    total number of particles, N
-%       r      particle locations (D x N matrix)
-%       v      particle velocities (D x N matrix)
-%       rho    particle densities (1 x N vector)
-%       mu     particle viscosities (1 x N vector)
+%       r      particle locations (2 x N matrix)
+%       v      particle velocities (2 x N matrix)
 %       p      particle pressures (1 x N vector)
 %       nb_p   neighbour particles (N x 1 cell of arrays)
 %       nb_g   neighbour ghosts (N x 1 cell of arrays)
 
-% Total number of particles.
-part.num = prod(pb.n);
+%% Initialize with fully-developped flow?
+fully_dev = true;
 
-% Initialize particle densities, velocities, and pressures.
-part.rho = pb.rho * ones(1, part.num);
-part.mu  = pb.mu * ones(1, part.num);
-part.v   = repmat(pb.v0, 1, part.num);
-part.p   = pb.pres * ones(1, part.num);
 
 % Initialize neighbour lists.
-part.nb_p = cell(part.num, 1);
-part.nb_g = cell(part.num, 1);
+part.nb_p = cell(pb.N, 1);
+part.nb_g = cell(pb.N, 1);
 
 % Set initial particle locations
-del = (pb.domain(:,2) - pb.domain(:,1))./ pb.n;
+x = pb.del * (1:pb.nx) - pb.del/2;
+y = pb.del * (1:pb.ny) - pb.b - pb.del/2;
+[X,Y] = meshgrid(x,y);
+X = reshape(X, 1, pb.N);
+Y = reshape(Y, 1, pb.N);
+% part.r = Perturb([X;Y], 0.1*pb.del);
+part.r = Perturb([X;Y], 0);
 
-switch pb.dim
+
+% Set initial particle velocities and pressures.
+part.v = zeros(2, pb.N);
+part.p = zeros(1, pb.N);
+
+if fully_dev
+    K = pb.K + pb.rho * pb.F;
+    tmp = K * pb.b^2 / (2 * pb.mu);
     
-    case 1
-        x = (pb.domain(1,1) + del(1)/2 : del(1) : pb.domain(1,2) - del(1)/2);
-        part.r = x;
-        
-    case 2
-        x = (pb.domain(1,1) + del(1)/2 : del(1) : pb.domain(1,2) - del(1)/2);
-        y = (pb.domain(2,1) + del(2)/2 : del(2) : pb.domain(2,2) - del(2)/2);
-        [X,Y] = meshgrid(x,y);
-        X = reshape(X, 1, part.num);
-        Y = reshape(Y, 1, part.num);
-        part.r = [X;Y];
-        
-    case 3
-        x = (pb.domain(1,1) + del(1)/2 : del(1) : pb.domain(1,2) - del(1)/2);
-        y = (pb.domain(2,1) + del(2)/2 : del(2) : pb.domain(2,2) - del(2)/2);
-        z = (pb.domain(3,1) + del(3)/2 : del(3) : pb.domain(3,2) - del(3)/2);
-        [X,Y,Z] = meshgrid(x,y,z);
-        X = reshape(X, 1, part.num);
-        Y = reshape(Y, 1, part.num);
-        Z = reshape(Z, 1, part.num);
-        part.r = [X;Y;Z];
-        
+    for i = 1:pb.N
+        part.v(1,i) = tmp * (1-(part.r(2,i)/pb.b)^2);
+%         part.p(i) = pb.K * (pb.L - part.r(1,i));
+    end
+    
 end
 
-% m = -del/10;
-% M = del/10;
+
+% m = -pb.del/10;
+% M = pb.del/10;
 % perturb = repmat(m, 1, part.num) + diag(M-m) * rand(size(part.r));
 % part.r = part.r + perturb;
 

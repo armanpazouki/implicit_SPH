@@ -11,7 +11,7 @@ if nargin == 2
     ghost = set_ghosts(pb, part);
     
     % For each particle, find its neighbours (particles and ghosts)
-    for i = 1 : part.num
+    for i = 1 : pb.N
         [nb_p, nb_g] = find_neighbours(part.r(:,i), pb, part, ghost);
         part.nb_p{i} = nb_p;
         part.nb_g{i} = nb_g;
@@ -22,12 +22,12 @@ end
 
 % Evaluate the RHS of the momentum equations and the divergence-free
 % algebraic constraints.
-f = zeros(pb.dim, part.num);
-g = zeros(1, part.num);
+f = zeros(2, pb.N);
+g = zeros(1, pb.N);
 
-for a = 1 : part.num
-    A = zeros(pb.dim, 1);
-    B = zeros(pb.dim, 1);
+for a = 1 : pb.N
+    A = zeros(2, 1);
+    B = zeros(2, 1);
     C = 0;
    
 %     fprintf('\n-----------\na = %i\n', a);
@@ -41,14 +41,14 @@ for a = 1 : part.num
         v = part.v(:,a) - part.v(:,b);
         gradW = kernel(r, pb.h, 1);
         
-        p_bar = part.p(a)/part.rho(a)^2 + part.p(b)/part.rho(b)^2;
-        rho_bar = (part.rho(a) + part.rho(b)) / 2;
-        mu_bar = part.mu(a) + part.mu(b);
+        p_bar = part.p(a)/pb.rho^2 + part.p(b)/pb.rho^2;
+        rho_bar = (pb.rho + pb.rho) / 2;
+        mu_bar = pb.mu + pb.mu;
         rr_bar = r' * r + pb.eta2;
       
         Aa = pb.m * p_bar * gradW';
         Ba = pb.m * (mu_bar / rho_bar^2 / rr_bar) * (r' * gradW') * v;
-        Ca = pb.m / part.rho(b) * gradW * v;
+        Ca = pb.m / pb.rho * gradW * v;
         
         A = A + Aa;
         B = B + Ba;
@@ -65,14 +65,14 @@ for a = 1 : part.num
         v = part.v(:,a) - ghost.v(:,b);
         gradW = kernel(r, pb.h, 1);
         
-        p_bar = part.p(a)/part.rho(a)^2 + ghost.p(b)/ghost.rho(b)^2;
-        rho_bar = (part.rho(a) + ghost.rho(b)) / 2;
-        mu_bar = part.mu(a) + ghost.mu(b);
+        p_bar = part.p(a)/pb.rho^2 + ghost.p(b)/pb.rho^2;
+        rho_bar = (pb.rho + pb.rho) / 2;
+        mu_bar = pb.mu + pb.mu;
         rr_bar = r' * r + pb.eta2;
         
         Aa = pb.m * p_bar * gradW';
         Ba = pb.m * (mu_bar / rho_bar^2 / rr_bar) * (r' * gradW') * v;
-        Ca = pb.m / ghost.rho(b) * gradW * v;
+        Ca = pb.m / pb.rho * gradW * v;
         
         A = A + Aa;
         B = B + Ba;
@@ -86,13 +86,13 @@ for a = 1 : part.num
 %     fprintf('A = %g  %g\n', A);
 %     fprintf('B = %g  %g\n', B);
     
-    f(:, a) = pb.F - A + B;
+    f(:, a) = [pb.F;0] - A + B;
 
     g(a) = C;
 end
 
 
 % Reshape 'f' and 'g' as column vectors.
-f = reshape(f, pb.dim * part.num, 1);
+f = reshape(f, 2 * pb.N, 1);
 g = g';
 
