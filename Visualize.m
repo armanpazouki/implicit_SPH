@@ -22,22 +22,22 @@ classdef Visualize < handle
             figure(obj.hf1);
             clf
             hold on
-            plot_particles(obj.hf1, SimulSys.part, SimulSys.ghost, SimulSys.pb);
+            plot_particles(obj.hf1, SimulSys.partNew, SimulSys.edgeP, SimulSys.dummyP, SimulSys.pb);
             %%
             pb = SimulSys.pb;
-            loc = [2*pb.h; -2.5*pb.h];
-            plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.ghost);
+            loc = [pb.del; pb.del*pb.ny];
+            plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.edgeP);
             plot(loc(1), loc(2), 'r*', 'markerfacecolor', 'r');
-            ip = round(pb.nx/2);
-            jp = pb.ny-1;
-            loc = SimulSys.part.r(:,(ip-1)*pb.ny + jp);
-            plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.ghost);
-            plot(loc(1), loc(2), 'r*', 'markerfacecolor', 'r');
+%             ip = round(pb.nx/2);
+%             jp = pb.ny-1;
+%             loc = SimulSys.part.r(:,(ip-1)*pb.ny + jp);
+%             plot_neighbours(obj.hf1, loc, pb, SimulSys.part, SimulSys.edgeP);
+%             plot(loc(1), loc(2), 'r*', 'markerfacecolor', 'r');
             hold off
             %% Plot Pressure
             figure(obj.hf2);
             x_lim = [0 pb.Lx];
-            y_lim = [-(0.5*pb.Ly) (0.5*pb.Ly)];
+            y_lim = [0 pb.Ly];
 
             x_min = x_lim(1) - 2*pb.h;
             x_max = x_lim(2) + 2*pb.h;
@@ -60,9 +60,9 @@ classdef Visualize < handle
             colorbar
 
             subplot(3,1,2)
-            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.ghost.p' ; nan*ones(pb.N,1)];
+            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.edgeP.p' ; nan*ones(pb.N,1)];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d
@@ -75,9 +75,9 @@ classdef Visualize < handle
             colorbar
 
             subplot(3,1,3)
-            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.ghost.p' ; SimulSys.part.p'];
+            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.edgeP.p' ; SimulSys.part.p'];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d
@@ -91,9 +91,9 @@ classdef Visualize < handle
             %% Plot Velocity
             figure(obj.hf3);
             subplot(2,1,1)
-            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.ghost.v(1,:)' ; SimulSys.part.v(1,:)'];
+            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.edgeP.v(1,:)' ; SimulSys.part.v(1,:)'];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d
@@ -106,9 +106,9 @@ classdef Visualize < handle
             colorbar
 
             subplot(2,1,2)
-            x=[SimulSys.ghost.r(1,:)' ; SimulSys.part.r(1,:)'];
-            y=[SimulSys.ghost.r(2,:)' ; SimulSys.part.r(2,:)'];
-            z=[SimulSys.ghost.v(2,:)' ; SimulSys.part.v(2,:)'];
+            x=[SimulSys.edgeP.r(1,:)' ; SimulSys.part.r(1,:)'];
+            y=[SimulSys.edgeP.r(2,:)' ; SimulSys.part.r(2,:)'];
+            z=[SimulSys.edgeP.v(2,:)' ; SimulSys.part.v(2,:)'];
             tri=delaunay(x,y);
             h = trisurf(tri, x, y, z);
             %axis vis3d

@@ -61,7 +61,34 @@ classdef MyFlowSystem < handle
             
             obj.nb_p = cell(obj.pb.NT, 1);
             obj.nb_d = cell(obj.pb.NT, 1);
+        end
+        
+        function dummyP = ApplyBoundaryInternal(obj, edgeP, dummyP)
+            dummyP = update_ghosts(edgeP, dummyP);
+        end
+        
+%         function ApplyBoundaryToOldParticles(obj)
+%             obj.ghost = obj.ApplyBoundaryInternal(obj.pb, obj.part);
+%         end
+        
+        function ApplyBoundary(obj)            
+            obj.dummyP = obj.ApplyBoundaryInternal(obj.edgePNew, obj.dummyP);
+        end
+        
+        function FindNeighbours(obj)
+            for i = 1 : obj.pb.NT
+                ri = obj.grabR(i, obj.partNew, obj.edgePNew);
+                [nb_p1, nb_d1] = find_neighbours(ri, obj.pb, cat(2, obj.partNew.r, obj.edgePNew.r), obj.dummyP);
+                obj.nb_p{i} = nb_p1;
+                obj.nb_d{i} = nb_d1;
+            end
+        end
                    
+        function CalcRHS(obj)
+            [obj.f, obj.g] = rhs(obj.pb, obj.partNew, obj.edgePNew, obj.dummyP);
+        end
+        
+        function CalcJacobian(obj)
             obj.numPos = 2 * obj.pb.N;
             obj.numVel = 2 * obj.pb.N;
             obj.numPres = obj.pb.N;
@@ -74,44 +101,9 @@ classdef MyFlowSystem < handle
             domainDataSize = obj.numPos+obj.numVel+obj.numPres;
             obj.cols_v_edge = (domainDataSize + 1 : domainDataSize+obj.numVel_edge);
             obj.cols_p_edge = (domainDataSize + obj.numVel_edge + 1 : domainDataSize + obj.numVel_edge + obj.numPres_edge);
-        end
-        
-        function dummyP = ApplyBoundaryInternal(obj, edgeP, dummyP)
-%             dummyP = update_ghosts(edgeP, dummyP);
-        end
-        
-%         function ApplyBoundaryToOldParticles(obj)
-%             obj.ghost = obj.ApplyBoundaryInternal(obj.pb, obj.part);
-%         end
-        
-        function ApplyBoundary(obj)            
-%             obj.dummyP = obj.ApplyBoundaryInternal(obj.edgePNew, obj.dummyP);
-              obj.edgeP = update_edgeP(obj, obj.partNew, obj.edgeP, obj.dummyP, obj.pb);
-              obj.edgePNew = obj.edgeP;
-        end
-        
-        function FindNeighbours(obj)
-            for i = 1 : obj.pb.NT
-                ri = obj.grabR(i, obj.partNew, obj.edgePNew);
-                rPartAndEdge = [obj.partNew.r obj.edgePNew.r];
-                [nb_p1, nb_d1] = find_neighbours(ri, obj.pb, rPartAndEdge, obj.dummyP.r);
-                obj.nb_p{i} = nb_p1;
-                obj.nb_d{i} = nb_d1;
-            end
-        end
-                   
-        function CalcRHS(obj)
-            [obj.f, obj.g] = rhs(obj, obj.pb, obj.partNew, obj.edgePNew, obj.dummyP);
-        end
-        
-        function CalcJacobian(obj)
-
-            % calc Jacobian
-            [obj.Jf, obj.Jg] = jac(obj, obj.pb, obj.partNew, obj.edgeP, obj.dummyP);
             
             % calc Jacobian
-%             checkJacobian(obj, false, obj.partNew, obj.edgeP, obj.dummyP, obj.Jf, obj.Jg);
-            
+            [obj.Jf, obj.Jg] = jac(obj, obj.pb, obj.partNew, obj.edgePNew);
             % calc sub-Jacobians
             obj.fr = obj.Jf(:,obj.cols_r);
             obj.fv = obj.Jf(:,obj.cols_v);
@@ -119,40 +111,48 @@ classdef MyFlowSystem < handle
             obj.gr = obj.Jg(:,obj.cols_r);
             obj.gv = obj.Jg(:,obj.cols_v);  
             
-%             obj.fv_edgeP = obj.Jf(:,obj.cols_v_edge);
-%             obj.fp_edgeP = obj.Jf(:,obj.cols_p_edge);
-%             obj.gv_edgeP = obj.Jg(:,obj.cols_v_edge);   
+            obj.fv_edgeP = obj.Jf(:,obj.cols_v_edge);
+            obj.fp_edgeP = obj.Jf(:,obj.cols_p_edge);
+            obj.gv_edgeP = obj.Jg(:,obj.cols_v_edge);   
         end
         
         function CalcJacobianAndRHSConstraints(obj)
-            [obj.Jc, obj.c] = jacAndRHSConstraint(obj, obj.pb, obj.partNew, obj.edgeP);
+            [obj.Jc, obj.c] = jacAndRHSConstraint(obj, obj.pb, obj.partNew, obj.edgePNew);
         end
         
         function error = Iterate(obj)
-            A1 = cat(2, eye(obj.numVel) - (obj.tau * obj.beta0)^2 * obj.fr - (obj.tau * obj.beta0) * obj.fv, -obj.tau * obj.beta0 * obj.fp);
-            A2 = cat(2, obj.tau * obj.beta0 * obj.gr + obj.gv, zeros(size(obj.g,1), obj.numPres));
-            A = cat(1, A1, A2);
+            A1 = cat(2, eye(obj.numVel) - (obj.tau * obj.beta0)^2 * obj.fr - (obj.tau * obj.beta0) * obj.fv, ...
+                -obj.tau * obj.beta0 * obj.fp,...
+                - (obj.tau * obj.beta0) * obj.fv_edgeP, -obj.tau * obj.beta0 * obj.fp_edgeP);
+            A2 = cat(2, obj.tau * obj.beta0 * obj.gr + obj.gv, zeros(size(obj.g,1), obj.numPres),...
+                obj.gv_edgeP, zeros(size(obj.g,1), obj.numPres_edge));
+            Au1 = cat(1, A1, A2);
+            A3 = obj.Jc(: , obj.numPos+1:obj.numPos+obj.numVel+obj.numPres+obj.numVel_edge+obj.numPres_edge);
+            'yo'
+            obj.edgePNew.num
+
+
+            A = cat(1, Au1, A3);
+            size(A);
 %             s = svd(A);
 %             sizeS = size(s,1);
 %             (s([sizeS-10:sizeS]))';
-
-            resR = reshape(obj.partNew.r-obj.tau*obj.beta0*obj.partNew.v-obj.part.r, 2 * obj.pb.N, 1);
-            b = - cat(1, reshape(obj.partNew.v-obj.part.v, 2 * obj.pb.N, 1)-obj.tau*obj.beta0*obj.f, obj.g) + ...
+            resR = obj.MakeVertical_2N(obj.partNew.r-obj.tau*obj.beta0*obj.partNew.v-obj.part.r, obj.pb.N);
+            b1 = - cat(1, obj.MakeVertical_2N(obj.partNew.v-obj.part.v, obj.pb.N)-obj.tau*obj.beta0*obj.f, obj.g) + ...
                 cat(1, -obj.tau * obj.beta0 * obj.fr*resR, obj.gr*resR); 
-
+            b = cat(1, b1, -obj.c);
             %% Add extra pressure constraint
-            myConstraint = zeros(1, obj.numPres + obj.numVel);
-            myConstraint(1, obj.numPres + obj.numVel) = 1;
-            A = cat(1, A, myConstraint);
-            b = cat(1, b, 0);
-            
+%             myConstraint = zeros(1, obj.numPres + obj.numVel);
+%             myConstraint(1, obj.numPres + obj.numVel) = 1;
+%             A = cat(1, A, myConstraint);
+%             b = cat(1, b, 0);
             %%
             fprintf('size and rank of A %d %d\n', size(A,1), rank(A));
             %% Solve using inverse (assuming full rank)
 %             fprintf('rank and size of A %d %d\n', rank(A), size(A,1));
 %             res = A\b;
             %% Solve using pinv
-            res = A \ b;
+            res = pinv(A) * b;
             %% Solve using QR of A'
 %             n = size(A,1);
 %             [Q, R] = qr(A');
@@ -180,15 +180,19 @@ classdef MyFlowSystem < handle
 %             res(1:r) = R(1:r,1:r)\bb(1:r);
             %%
             error = max(abs(res));%/ max(max(max(abs(obj.part.v))) , max(obj.part.p));
-            obj.partNew.v = obj.partNew.v + reshape(res(1:obj.numVel), 2, obj.pb.N);
-            obj.partNew.p = obj.partNew.p + reshape(res(obj.numVel+1:obj.numVel+obj.numPres), 1, obj.pb.N);
-            obj.partNew.r = obj.partNew.r + reshape(-resR  + obj.tau * obj.beta0 * res(1:obj.numVel), 2, obj.pb.N);
+            obj.partNew.v = obj.partNew.v + obj.MakeHorizontal_2N(res(1:obj.numVel), obj.pb.N);
+            obj.partNew.p = obj.partNew.p + obj.MakeHorizontal_N(res(obj.numVel+1:obj.numVel+obj.numPres), obj.pb.N);
+            obj.partNew.r = obj.partNew.r + obj.MakeHorizontal_2N(-resR  + obj.tau * obj.beta0 * res(1:obj.numVel), obj.pb.N);
             
+            obj.edgePNew.v = obj.edgePNew.v + ...
+                obj.MakeHorizontal_2N(res(obj.numVel+obj.numPres+1 : obj.numVel+obj.numPres+obj.numVel_edge), obj.edgePNew.num);
+            obj.edgePNew.p = obj.edgePNew.p + ...
+                obj.MakeHorizontal_N(res(obj.numVel+obj.numPres+obj.numVel_edge+1: obj.numVel+obj.numPres+obj.numVel_edge+obj.numPres_edge), obj.edgePNew.num);
         end
         
         function CopyNewToCurrent(obj)
             obj.part = obj.partNew;
-%             obj.edgeP = obj.edgePNew;
+            obj.edgeP = obj.edgePNew;
         end
         
         function PeriodicBoundary(obj)
@@ -216,7 +220,7 @@ classdef MyFlowSystem < handle
             if (i <= np)
                 c = ((i-1)*2 + 1 : i*2);
             else
-%                 'something is wrong probably'
+                'something is wrong probably'
                 c = [];
             end
         end
@@ -226,11 +230,10 @@ classdef MyFlowSystem < handle
             ne = obj.pb.Ne;
             if (i <= np)
                 numSavedComps = 2 * np;
-                c = (numSavedComps + (i-1)*2 + 1 : numSavedComps + i*2);
             else
                 numSavedComps = 5 * np;
-                c = [];
             end
+            c = (numSavedComps + (i-1)*2 + 1 : numSavedComps + i*2);
         end
         
         function c = Cols_p(obj, i)
@@ -238,13 +241,15 @@ classdef MyFlowSystem < handle
             ne = obj.pb.Ne;
             if (i <= np)
                 numSavedComps = 4 * np;
-                c = numSavedComps + i;
             else
                 numSavedComps = 5 * np + 2 * ne; %everything for parts + vel of edgePs
-                c = [];
             end
+            c = numSavedComps + i;
         end
-
+        
+        
+        
+        
 %         function c = Cols_v_edge(obj, i, np, ne)
 %             numParPosVelPre = 5 * np;
 %             c = (numParPosVelPre + (i-1)*2 + 1 : numParPosVelPre + i*2);
@@ -254,7 +259,46 @@ classdef MyFlowSystem < handle
 %             numParPosVelPre = 5 * np;
 %             c = numParPosVelPre + 2 * ne + i;
 %         end
-
+        
+        % re-shapes the array of (2,N) to (2N,1)
+        function out = MakeVertical_2N(obj, r, n)
+            if ((size(r, 1) ~= 2) | (size(r, 2) ~= n))
+                size(r)
+                fprintf('you are calling wrong function: your size is not (2,N)');
+            end
+            out = zeros(2 * n, 1);
+            out(1:2:2 * n) = r(1,:);
+            out(2:2:2 * n) = r(2,:);
+        end
+        
+        % re-shapes the array of (1,N) to (N,1)
+        function out = MakeVertical_N(obj, r, n)
+            if ((size(r, 1) ~= 1) | (size(r, 2) ~= n))
+                size(r)
+                fprintf('you are calling wrong function: your size is not (1,N)\n');
+            end
+            out = r';
+        end  
+        
+        % Undo MakeVertical_2N, i.e. re-shape from (2N,1) to (2,N)
+        function out = MakeHorizontal_2N(obj, r, n)
+            if ((size(r, 1) ~= 2*n) | (size(r, 2) ~= 1))
+                size(r, 1)
+                fprintf('error in number of components in horizontal vec: not (2N, 1)\n');
+            end
+            out = zeros(2, n);
+            out(1, :) = r(1:2:2*n);
+            out(2, :) = r(2:2:2*n);
+        end
+        
+        % Undo MakeVertical_N, i.e. re-shape from (N,1) to (1,N)
+        function out = MakeHorizontal_N(obj, r, n)
+            if ((size(r, 1) ~= n) | (size(r, 2) ~= 1))
+                fprintf('error in number of components in horizontal vec: not (N, 1)');
+            end
+            out = r';
+        end
+        
         function [Gr, Gv, Gp] = ghost_influence(obj,bc)
             % The 2 dimensional array 'bc' encodes the BC for some ghost point. We can
             % have the following cases:

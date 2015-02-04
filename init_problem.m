@@ -7,7 +7,7 @@ function pb = init_problem
 % pb.rho = 1000;          % Kg/m^3
 % pb.mu = 1e-3;           % Kg/(m^2*s^2)
 % pb.nu = pb.mu / pb.rho; % m/s^2
-pb.rho = 1;          % Kg/m^3
+pb.rho = 1000;          % Kg/m^3
 pb.mu = 1;           % Kg/(m^2*s^2)
 pb.nu = pb.mu / pb.rho; % m/s^2
 
@@ -17,7 +17,7 @@ pb.K = 0;%0.5;%2e-9; % 2 * mu^2 * Re / (rho*(Ly/2)^3)
 pb.F = 0.0;
 
 % Suggested number of SPH markers.
-N = 200;
+N = 100;
 
 % Channel half-width and length
 Ly = 1;
@@ -25,11 +25,13 @@ Lx = 1;%2*Ly;
 
 % Calculate actual number of SPH markers and channel length.
 pb.ny = floor(sqrt(Ly*N/Lx));
-pb.del = Ly/pb.ny;
+pb.del = Ly/(pb.ny + 1);
 pb.nx = floor(N/pb.ny);
 pb.N = pb.nx * pb.ny;
 pb.Ly = Ly;
-pb.Lx = pb.del * pb.nx;
+pb.Lx = pb.del * (pb.nx + 1);
+pb.Ne = 0;
+pb.NT = pb.Ne + pb.N;
 
 % Estimate Reynolds number
 u_max = (pb.K + pb.rho * pb.F) * (pb.Ly/2)^2 / (2 * pb.mu);
@@ -58,5 +60,5 @@ pb.eta2 = (0.1 * pb.h)^2;
 
 % Time stepsize
 % pb.dt = 10000;
-pb.dt = 0.1;%10000; .01 is for normalized system
+pb.dt = 10;%10000; .01 is for normalized system
 

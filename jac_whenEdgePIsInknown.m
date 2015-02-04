@@ -6,7 +6,19 @@ function [Jf, Jg] = jac(obj, pb, part, edgeP, dummyP, varargin)
 %       uses the specified ghosts and assumes that the neighbours have been
 %       already set (and are available in the structure 'part')
 
-
+% %         if nargin == 2
+% %             % Set the edgeP points.
+% %             edgeP = set_ghosts(pb, part);
+% % 
+% %             % For each particle, find its neighbours (particles and ghosts)
+% %             for i = 1 : pb.N
+% %                 [nb_p, nb_d] = find_neighbours(part.r(:,i), pb, part, edgeP);
+% %                 part.nb_p{i} = nb_p;
+% %                 part.nb_d{i} = nb_d;
+% %             end
+% %         else
+% %             edgeP = varargin{1};
+% %         end
 
 % Calculate the Jacobian of the RHS of the momentunm equations and the
 % Jacobian of the algebraic constraints (the divergence-free conditions).
@@ -19,14 +31,14 @@ numPresE = pb.Ne;
 
 % Jacobian for particles only: rows are associated to particles only (not
 % edgeP). We do not write momentum for edgeP, we write BC.
-Jf = zeros(numVel,  numPos + numVel + numPres);
-Jg = zeros(numPres, numPos + numVel + numPres);
+Jf = zeros(numVel,  numPos + numVel + numPres + numVelE + numPresE);
+Jg = zeros(numPres, numPos + numVel + numPres + numVelE + numPresE);
 
-for a = 1 : pb.N
+for ia = 1 : pb.N
     
     % Neighbours of particle 'a'.
-    nb_p = obj.nb_p{a};
-    nb_d = obj.nb_d{a};
+    nb_p = part.nb_p{a};
+    nb_d = part.nb_d{a};
        
     % Rows in Jacobians corresponding to particle 'a', knowing that
     % particle 'a' is not edge
@@ -42,14 +54,10 @@ for a = 1 : pb.N
     for ib = 1 : length(nb_p) + length(nb_d)
         if (ib <= length(nb_p)) % part or edgeP
             b = nb_p(ib);
-            if (b == a)
-%                 continue;
-            end
             r = obj.grabR(a, part, edgeP) - obj.grabR(b, part, edgeP);
         else                    % dummyP
             dumPIdx = nb_d(ib - length(nb_p));
-            b = dummyP.idx(dumPIdx); % associated edgeP particle     
-            b = b + pb.N;            % to comply with the grabV and grabP functions
+            b = dummyP.idx(dumPIdx); % associated edgeP particle        
         	r = obj.grabR(a, part, edgeP) - dummyP.r(:,dumPIdx);
         end
 
@@ -68,41 +76,34 @@ for a = 1 : pb.N
         mu_bar = pb.mu + pb.mu;
         rr_bar = r' * r + pb.eta2;
        
-        % Jacobian blocks corresponding to p/p(r).
+        % Jacobian blocks corresponding to the term A.
         Aa_ra = pb.m * p_bar * hessW;
-        Ba_ra = pb.m * (mu_bar / rho_bar^2 / rr_bar) * ...
-            (v * r' * (hessW - 2 * (r' * gradW') / rr_bar * eye(2)) + v * gradW);
-        Ca_ra = pb.m / pb.rho * v' * hessW;
-        if (size(col_ra, 2) ~= 0) 
-            Jf(row_Jf, col_ra) = Jf(row_Jf, col_ra) - Aa_ra + Ba_ra; 
-            Jg(row_Jg, col_ra) = Jg(row_Jg, col_ra) + Ca_ra;
-        end
-        if (size(col_rb, 2) ~= 0) 
-            Jf(row_Jf, col_rb) = Jf(row_Jf, col_rb) + Aa_ra - Ba_ra; 
-            Jg(row_Jg, col_rb) = Jg(row_Jg, col_rb) - Ca_ra;
-        end
+        Jf(row_Jf, col_ra) = Jf(row_Jf, col_ra) - Aa_ra;
+        Jf(row_Jf, col_rb) = Jf(row_Jf, col_rb) + Aa_ra;
         
-        % Jacobian blocks corresponding to p/p(p).
         Aa_pa = pb.m / pb.rho^2 * gradW';
         Aa_pb = pb.m / pb.rho^2 * gradW';
-        if (size(col_pa, 2) ~= 0) 
-            Jf(row_Jf, col_pa) = Jf(row_Jf, col_pa) - Aa_pa;
-        end
-        if (size(col_pb, 2) ~= 0) 
-            Jf(row_Jf, col_pb) = Jf(row_Jf, col_pb) - Aa_pb;
-        end
+        Jf(row_Jf, col_pa) = Jf(row_Jf, col_pa) - Aa_pa;
+        Jf(row_Jf, col_pb) = Jf(row_Jf, col_pb) - Aa_pb;
         
-        % Jacobian blocks corresponding to p/p(v).       
+        % Jacobian blocks corresponding to the term B.
+        Ba_ra = pb.m * (mu_bar / rho_bar^2 / rr_bar) * ...
+            (v * r' * (hessW - 2 * (r' * gradW') / rr_bar * eye(2)) + v * gradW);
+        Jf(row_Jf, col_ra) = Jf(row_Jf, col_ra) + Ba_ra;
+        Jf(row_Jf, col_rb) = Jf(row_Jf, col_rb) - Ba_ra;
+        
         Ba_va = pb.m * (mu_bar / rho_bar^2 / rr_bar) * (r' * gradW') * eye(2);
+        Jf(row_Jf, col_va) = Jf(row_Jf, col_va) + Ba_va;
+        Jf(row_Jf, col_vb) = Jf(row_Jf, col_vb) - Ba_va;
+        
+        % Jacobian blocks corresponding to the term C.
+        Ca_ra = pb.m / pb.rho * v' * hessW;
+        Jg(row_Jg, col_ra) = Jg(row_Jg, col_ra) + Ca_ra;
+        Jg(row_Jg, col_rb) = Jg(row_Jg, col_rb) - Ca_ra;
+        
         Ca_va = pb.m / pb.rho * gradW;
-        if (size(col_va, 2) ~= 0) 
-            Jf(row_Jf, col_va) = Jf(row_Jf, col_va) + Ba_va;
-            Jg(row_Jg, col_va) = Jg(row_Jg, col_va) + Ca_va;
-        end
-        if (size(col_vb, 2) ~= 0) 
-            Jf(row_Jf, col_vb) = Jf(row_Jf, col_vb) - Ba_va;
-            Jg(row_Jg, col_vb) = Jg(row_Jg, col_vb) - Ca_va;
-        end
+        Jg(row_Jg, col_va) = Jg(row_Jg, col_va) + Ca_va;
+        Jg(row_Jg, col_vb) = Jg(row_Jg, col_vb) - Ca_va;
     end
 end
 
