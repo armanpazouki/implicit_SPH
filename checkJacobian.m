@@ -2,6 +2,9 @@
 %   checkJacobian calculates the analytical Jacobian for a 2-D problem and
 %   estimates it using forward finite differences.
 
+
+addpath('div_free');
+
 %% Evaluate FD Jacobian?
 fd = true;
 while true

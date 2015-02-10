@@ -3,6 +3,8 @@ clear all
 close all
 clc
 
+addpath('div_free');
+
 myFlow = MyFlowSystem();
 myFlow.InitializeProblem;
 myVisualize = Visualize;
